@@ -1746,9 +1746,24 @@ function mailtoFallback(ref,svc){
   const body=buildMail(ref,svc).map(r=>r[0]+': '+r[1]).join('\n');
   location.href='mailto:'+MAIL_TO+'?subject='+encodeURIComponent('Neue Umzugsanfrage '+ref+' – '+svc.n)+'&body='+encodeURIComponent(body);
 }
+/* ===== Anbindung ans Dashboard (auftragdeal.ch): Lead zusätzlich zur Mail ===== */
+const DASH_REQ='https://app.auftragdeal.ch/api/request.php';
+function dashBranch(k){return k==='reinigung'?'Reinigung':(k==='entsorgung'||k==='raeumung')?'Entsorgung':'Umzug';}
+function sendToDashboard(ref,svc){
+  try{
+    const plz=($('#a-plz').value||'').trim();const m=plz.match(/^(\d{4})\s*(.*)$/);
+    const desc=buildMail(ref,svc).filter(r=>r[0]!=='E-Mail'&&r[0]!=='Telefon'&&r[0]!=='Anrede / Name').map(r=>r[0]+': '+r[1]).join('\n');
+    const payload={name:($('#c-fn').value.trim()+' '+$('#c-ln').value.trim()).trim(),mail:$('#c-em').value.trim(),tel:$('#c-ph').value.trim(),
+      branch:dashBranch(S.svc),zip:m?m[1]:'',city:m?m[2].trim():plz,description:'Quelle: umzugdeal.ch · Anfrage '+ref+'\n'+desc,
+      when:fmtDate($('#f-date').value)+(S.flex!=='fix'?' ('+S.flex+')':' (fix)'),budget:S.est?chf(S.est[0])+' – '+chf(S.est[1]).replace('CHF ',''):'',hp:''};
+    /* text/plain + no-cors: einfache Anfrage ohne CORS-Vorabprüfung; Fehler hier dürfen die Mail-Anfrage nie stören */
+    fetch(DASH_REQ,{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify(payload)}).catch(e=>console.warn('Dashboard:',e));
+  }catch(e){console.warn('Dashboard:',e);}
+}
 async function submitReq(){
   const ref='US-'+(2600+Math.floor(Math.random()*399));
   const svc=SVC.find(s=>s.k===S.svc);
+  sendToDashboard(ref,svc);
   const btn=$('#wzNext');btn.classList.add('sending');btn.innerHTML='Wird gesendet …';
   let ok=true;
   try{await sendByMail(ref,svc,true);}catch(e){if(S.photos.length){try{await sendByMail(ref,svc,false);}catch(e2){ok=false;}}else ok=false;}
